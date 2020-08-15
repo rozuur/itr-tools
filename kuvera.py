@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+import datetime
+import decimal
 import re
 import argparse
 
@@ -5,7 +8,38 @@ import pandas as pd
 
 from collections import namedtuple
 
-Transaction = namedtuple('Transaction', 'name, isin, family, id units purchase_date purchase_value acquisition_value grandfather_value redemption_date gains stcg ltcg')
+@dataclass
+class Transaction:
+    name: str
+    isin: str
+    family: str
+    id: int
+    units: decimal.Decimal
+    purchase_date: datetime.datetime
+    purchase_value: decimal.Decimal
+    acquisition_value: decimal.Decimal
+    grandfather_value: decimal.Decimal
+    redemption_date: datetime.datetime
+    redemption_value: decimal.Decimal
+    stcg: decimal.Decimal
+    ltcg: decimal.Decimal
+
+    @staticmethod
+    def dd_mm_yyyy(date: datetime.datetime) -> str:
+        date = datetime.datetime.strptime(date, '%b %d, %Y')
+        return date.strftime("%d/%m/%Y")
+
+
+    def cleartax(self):
+        t = self
+        perunit_sale = t.redemption_value / t.units if t.units > 0 else 0
+        family = 'MF (Other than Equity)' if t.family == 'Debt' else 'MF (Equity)'
+        return (family, t.isin, t.name, t.units,
+                self.dd_mm_yyyy(t.purchase_date),
+                t.purchase_value,
+                self.dd_mm_yyyy(t.redemption_date),
+                perunit_sale)
+
 
 def parse_transactions(rows):
     # First line is fund with ISIN
@@ -18,7 +52,9 @@ def parse_transactions(rows):
     name, isin, family = re.match(r'(.+)\[ISIN: ([\w\s]+)\W+(\w+)', fund).groups()
     # Skip last transaction as it's fund total
     for transaction in rows[2:-1]:
-        yield Transaction(name.strip(), isin, family, *transaction.to_list())
+        t = Transaction(name.strip(), isin, family, *transaction.to_list())
+        if isinstance(t.id, int):
+            yield t
 
 
 def _isin(fund):
@@ -42,11 +78,14 @@ def parse_gains(filename):
     return transactions
 
 def main():
-    parser = argparse.ArgumentParser("Kuvera capital gains excel")
-    parser.add_argument('--file', help="Excel file")
+    parser = argparse.ArgumentParser("Capital Gains")
+    parser.add_argument('--kuvera', help="Kuvera excel")
     args = parser.parse_args()
-    transactions = parse_gains(args.file)
+    transactions = parse_gains(args.kuvera)
 
+    for t in transactions:
+        row = t.cleartax()
+        print(",".join([str(c).replace(",","-") for c in row]))
 
 
 if __name__ == '__main__':
