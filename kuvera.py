@@ -33,7 +33,8 @@ class Transaction:
     def cleartax(self):
         t = self
         perunit_sale = t.redemption_value / t.units if t.units > 0 else 0
-        family = 'MF (Other than Equity)' if t.family == 'Debt' else 'MF (Equity)'
+        # Family will be auto detected in cleartax based on ISIN
+        family = ''
         return (family, t.isin, t.name, t.units,
                 self.dd_mm_yyyy(t.purchase_date),
                 t.purchase_value,
