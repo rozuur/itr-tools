@@ -1,9 +1,11 @@
 import argparse
 import re
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 
 import pandas as pd
+import xlrd
 
 CLEARTAX_DATE_FORMAT = "%d/%m/%Y"
 KUVERA_ISIN_PATTERN = re.compile(r"(.+)\[ISIN: ([\w\s]+)\W+(\w+)")
@@ -77,7 +79,15 @@ def _isin(fund):
 
 
 def parse_gains(filename):
-    sheet = pd.read_excel(filename, sheet_name="Sheet1")
+    try:
+        sheet = pd.read_excel(filename, sheet_name="Sheet1")
+    except xlrd.biffh.XLRDError:
+        print(
+            "Kuvera capital gains sheet is corrupted, try again after manually opening and saving the sheet.",
+            file=sys.stderr,
+        )
+        exit(1)
+
     transactions = []
     rows = []
     for pd_row in sheet.iterrows():
