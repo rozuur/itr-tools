@@ -1,32 +1,40 @@
 import argparse
-import datetime
-import decimal
 import re
 from dataclasses import dataclass
+from datetime import datetime
 
 import pandas as pd
+
+CLEARTAX_DATE_FORMAT = "%d/%m/%Y"
+KUVERA_ISIN_PATTERN = re.compile(r"(.+)\[ISIN: ([\w\s]+)\W+(\w+)")
 
 
 @dataclass
 class Transaction:
+
     name: str
     isin: str
+    folio: str
     family: str
-    id: int
-    units: decimal.Decimal
-    purchase_date: datetime.datetime
-    purchase_value: decimal.Decimal
-    acquisition_value: decimal.Decimal
-    grandfather_value: decimal.Decimal
-    redemption_date: datetime.datetime
-    redemption_value: decimal.Decimal
-    stcg: decimal.Decimal
-    ltcg: decimal.Decimal
+    _id: int
+    units: float
+    purchase_date: datetime
+    purchase_value: float
+    acquisition_value: float
+    grandfather_value: float
+    redemption_date: datetime
+    redemption_value: float
+    stcg: float
+    ltcg: float
 
-    @staticmethod
-    def dd_mm_yyyy(date: datetime.datetime) -> str:
-        date = datetime.datetime.strptime(date, "%b %d, %Y")
-        return date.strftime("%d/%m/%Y")
+    def __parse_date(self, date):
+        if isinstance(date, str):
+            return datetime.strptime(date, "%b %d, %Y")
+        return date
+
+    def __post_init__(self):
+        self.purchase_date = self.__parse_date(self.purchase_date)
+        self.redemption_date = self.__parse_date(self.redemption_date)
 
     def cleartax(self):
         t = self
@@ -38,9 +46,9 @@ class Transaction:
             t.isin,
             t.name,
             t.units,
-            self.dd_mm_yyyy(t.purchase_date),
+            t.purchase_date.strftime(CLEARTAX_DATE_FORMAT),
             t.purchase_value,
-            self.dd_mm_yyyy(t.redemption_date),
+            t.redemption_date.strftime(CLEARTAX_DATE_FORMAT),
             perunit_sale,
         )
 
@@ -52,12 +60,12 @@ def parse_transactions(rows):
     if not isin:
         return
     # Second line is Folio
-    _ = rows[1][0]
-    name, isin, family = re.match(r"(.+)\[ISIN: ([\w\s]+)\W+(\w+)", fund).groups()
-    # Skip last transaction as it's fund total
-    for transaction in rows[2:-1]:
-        t = Transaction(name.strip(), isin, family, *transaction.to_list())
-        if isinstance(t.id, int):
+    folio = rows[1][0]
+    name, isin, family = KUVERA_ISIN_PATTERN.match(fund).groups()
+    for transaction in rows[2:]:
+        t = Transaction(name.strip(), isin, family, folio, *transaction.to_list())
+        # Ignore all other rows which doesn't have valid index
+        if isinstance(t._id, int):
             yield t
 
 
@@ -85,9 +93,9 @@ def parse_gains(filename):
 
 def main():
     parser = argparse.ArgumentParser("Capital Gains")
-    parser.add_argument("--kuvera", help="Kuvera excel")
+    parser.add_argument("filename", nargs=1)
     args = parser.parse_args()
-    transactions = parse_gains(args.kuvera)
+    transactions = parse_gains(args.filename[0])
 
     for t in transactions:
         row = t.cleartax()
