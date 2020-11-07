@@ -22,10 +22,13 @@ class Transaction:
     units: float
     purchase_date: datetime
     purchase_value: float
+    purchase_nav: float
     acquisition_value: float
     grandfather_value: float
+    grandfather_nav: float
     redemption_date: datetime
     redemption_value: float
+    redemption_nav: float
     stcg: float
     ltcg: float
 
